@@ -1,5 +1,4 @@
- html
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -14,6 +13,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
+            overflow-x: hidden;
         }
         #root { width: 100%; }
         .container {
@@ -38,6 +38,7 @@
             cursor: pointer;
             box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             transition: transform 0.2s;
+            margin-bottom: 20px;
         }
         button:hover {
             transform: scale(1.05);
@@ -47,6 +48,8 @@
             border-radius: 10px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.3);
             background: #1a1a2e;
+            display: block;
+            margin: 0 auto;
         }
         .controls {
             background: rgba(255,255,255,0.1);
@@ -71,16 +74,57 @@
             border-radius: 5px;
             font-weight: bold;
         }
+        .health-container {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding: 0 20px;
+        }
+        .health-bar {
+            width: 200px;
+            height: 25px;
+            background: #333;
+            border-radius: 5px;
+            overflow: hidden;
+            border: 2px solid white;
+        }
+        .health-fill {
+            height: 100%;
+            background: #00ff00;
+            transition: width 0.3s;
+        }
+        .health-text {
+            color: white;
+            margin-top: 5px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <div id="root">
         <div class="container">
             <h1>🥊 FIGHTER GAME 🥊</h1>
-            <button onclick="startGame()">START GAME</button>
+            <button id="startButton" onclick="startGame()">START GAME</button>
+            
+            <div class="health-container">
+                <div>
+                    <div class="health-bar">
+                        <div id="health1-bar" class="health-fill" style="width: 100%"></div>
+                    </div>
+                    <div class="health-text">Player 1: <span id="health1-text">100</span>%</div>
+                </div>
+                <div>
+                    <div class="health-bar">
+                        <div id="health2-bar" class="health-fill" style="width: 100%"></div>
+                    </div>
+                    <div class="health-text">Player 2: <span id="health2-text">100</span>%</div>
+                </div>
+            </div>
+            
             <div style="margin-top: 20px;">
                 <canvas id="gameCanvas" width="800" height="450"></canvas>
             </div>
+            
             <div class="controls">
                 <div class="player-controls">
                     <h3>Player 1 (Blue)</h3>
@@ -101,30 +145,59 @@
     </div>
 
     <script>
+        console.log("Game script loading...");
+        
+        // Initialize variables
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        const startButton = document.getElementById('startButton');
         
         let gameRunning = false;
         let animationId;
         
+        // Game state
         const game = {
-            player1: { x: 100, y: 300, width: 50, height: 80, health: 100, velocityY: 0, jumping: false, attacking: false, attackCooldown: 0, facing: 1, color: '#3498db' },
-            player2: { x: 650, y: 300, width: 50, height: 80, health: 100, velocityY: 0, jumping: false, attacking: false, attackCooldown: 0, facing: -1, color: '#e74c3c' },
+            player1: { 
+                x: 100, y: 300, width: 50, height: 80, 
+                health: 100, velocityY: 0, jumping: false, 
+                attacking: false, attackCooldown: 0, facing: 1, color: '#3498db' 
+            },
+            player2: { 
+                x: 650, y: 300, width: 50, height: 80, 
+                health: 100, velocityY: 0, jumping: false, 
+                attacking: false, attackCooldown: 0, facing: -1, color: '#e74c3c' 
+            },
             keys: {},
             gravity: 0.6,
             jumpPower: -12,
             groundLevel: 300
         };
 
+        // Update health display
+        function updateHealthDisplay() {
+            document.getElementById('health1-bar').style.width = game.player1.health + '%';
+            document.getElementById('health2-bar').style.width = game.player2.health + '%';
+            document.getElementById('health1-text').textContent = Math.max(0, game.player1.health);
+            document.getElementById('health2-text').textContent = Math.max(0, game.player2.health);
+        }
+
+        // Keyboard event listeners
         document.addEventListener('keydown', (e) => {
-            game.keys[e.key.toLowerCase()] = true;
-            e.preventDefault();
+            const key = e.key.toLowerCase();
+            game.keys[key] = true;
+            
+            // Prevent arrow key scrolling
+            if(['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(e.key.toLowerCase())) {
+                e.preventDefault();
+            }
         });
 
         document.addEventListener('keyup', (e) => {
-            game.keys[e.key.toLowerCase()] = false;
+            const key = e.key.toLowerCase();
+            game.keys[key] = false;
         });
 
+        // Update player movement
         function updatePlayer(player, controls) {
             if (game.keys[controls.left]) {
                 player.x -= 5;
@@ -143,23 +216,28 @@
                 player.attackCooldown = 30;
             }
 
+            // Apply gravity
             player.velocityY += game.gravity;
             player.y += player.velocityY;
 
+            // Ground collision
             if (player.y >= game.groundLevel) {
                 player.y = game.groundLevel;
                 player.velocityY = 0;
                 player.jumping = false;
             }
 
+            // Screen boundaries
             player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
 
+            // Update attack cooldown
             if (player.attackCooldown > 0) player.attackCooldown--;
             if (player.attacking && player.attackCooldown <= 15) {
                 player.attacking = false;
             }
         }
 
+        // Check attack collision
         function checkAttackHit(attacker, defender) {
             if (!attacker.attacking) return false;
             
@@ -178,20 +256,25 @@
 
             if (hit) {
                 defender.health -= 0.5;
+                updateHealthDisplay();
                 return true;
             }
             return false;
         }
 
+        // Draw player
         function drawPlayer(player) {
+            // Draw body
             ctx.fillStyle = player.color;
             ctx.fillRect(player.x, player.y, player.width, player.height);
             
+            // Draw head
             ctx.fillStyle = '#FFD700';
             ctx.beginPath();
             ctx.arc(player.x + player.width/2, player.y - 10, 15, 0, Math.PI * 2);
             ctx.fill();
 
+            // Draw attack effect
             if (player.attacking) {
                 ctx.fillStyle = 'rgba(255, 0, 0, 0.4)';
                 const attackX = player.facing > 0 ? player.x + player.width : player.x - 70;
@@ -199,66 +282,141 @@
             }
         }
 
-        function drawHealthBar(player, x, y) {
+        // Draw canvas health bars
+        function drawCanvasHealthBars() {
+            // Player 1 health
             ctx.fillStyle = '#333';
-            ctx.fillRect(x, y, 200, 20);
-            ctx.fillStyle = player.health > 30 ? '#00ff00' : '#ff0000';
-            ctx.fillRect(x, y, (player.health / 100) * 200, 20);
+            ctx.fillRect(20, 20, 200, 20);
+            ctx.fillStyle = game.player1.health > 30 ? '#00ff00' : '#ff0000';
+            ctx.fillRect(20, 20, (game.player1.health / 100) * 200, 20);
             ctx.strokeStyle = '#fff';
             ctx.lineWidth = 2;
-            ctx.strokeRect(x, y, 200, 20);
-        }
+            ctx.strokeRect(20, 20, 200, 20);
 
-        function gameLoop() {
-            if (!gameRunning) return;
+            // Player 2 health
+            ctx.fillStyle = '#333';
+            ctx.fillRect(canvas.width - 220, 20, 200, 20);
+            ctx.fillStyle = game.player2.health > 30 ? '#00ff00' : '#ff0000';
+            ctx.fillRect(canvas.width - 220, 20, (game.player2.health / 100) * 200, 20);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(canvas.width - 220, 20, 200, 20);
 
-            ctx.fillStyle = '#1a1a2e';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            ctx.fillStyle = '#16213e';
-            ctx.fillRect(0, game.groundLevel + 80, canvas.width, canvas.height);
-
-            updatePlayer(game.player1, { left: 'a', right: 'd', jump: 'w', attack: 's' });
-            updatePlayer(game.player2, { left: 'arrowleft', right: 'arrowright', jump: 'arrowup', attack: 'arrowdown' });
-
-            checkAttackHit(game.player1, game.player2);
-            checkAttackHit(game.player2, game.player1);
-
-            drawPlayer(game.player1);
-            drawPlayer(game.player2);
-
-            drawHealthBar(game.player1, 20, 20);
-            drawHealthBar(game.player2, canvas.width - 220, 20);
-
+            // Player labels
             ctx.fillStyle = '#fff';
             ctx.font = '16px Arial';
             ctx.fillText('Player 1', 20, 55);
             ctx.fillText('Player 2', canvas.width - 220, 55);
+        }
 
+        // Main game loop
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            // Clear canvas
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw ground
+            ctx.fillStyle = '#16213e';
+            ctx.fillRect(0, game.groundLevel + 80, canvas.width, canvas.height);
+
+            // Update players
+            updatePlayer(game.player1, { left: 'a', right: 'd', jump: 'w', attack: 's' });
+            updatePlayer(game.player2, { 
+                left: 'arrowleft', 
+                right: 'arrowright', 
+                jump: 'arrowup', 
+                attack: 'arrowdown' 
+            });
+
+            // Check attacks
+            checkAttackHit(game.player1, game.player2);
+            checkAttackHit(game.player2, game.player1);
+
+            // Draw players
+            drawPlayer(game.player1);
+            drawPlayer(game.player2);
+
+            // Draw health bars
+            drawCanvasHealthBars();
+
+            // Check game over
             if (game.player1.health <= 0 || game.player2.health <= 0) {
-                gameRunning = false;
-                const winner = game.player1.health > 0 ? 'Player 1' : 'Player 2';
-                ctx.fillStyle = 'rgba(0,0,0,0.8)';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = '#FFD700';
-                ctx.font = 'bold 48px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText(winner + ' WINS!', canvas.width/2, canvas.height/2);
-                ctx.textAlign = 'left';
+                endGame();
                 return;
             }
 
             animationId = requestAnimationFrame(gameLoop);
         }
 
-        function startGame() {
-            game.player1 = { x: 100, y: 300, width: 50, height: 80, health: 100, velocityY: 0, jumping: false, attacking: false, attackCooldown: 0, facing: 1, color: '#3498db' };
-            game.player2 = { x: 650, y: 300, width: 50, height: 80, health: 100, velocityY: 0, jumping: false, attacking: false, attackCooldown: 0, facing: -1, color: '#e74c3c' };
-            game.keys = {};
-            gameRunning = true;
-            gameLoop();
+        // End game
+        function endGame() {
+            gameRunning = false;
+            cancelAnimationFrame(animationId);
+            
+            const winner = game.player1.health > 0 ? 'Player 1' : 'Player 2';
+            
+            ctx.fillStyle = 'rgba(0,0,0,0.8)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#FFD700';
+            ctx.font = 'bold 48px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(winner + ' WINS!', canvas.width/2, canvas.height/2);
+            
+            ctx.font = '24px Arial';
+            ctx.fillText('Click START GAME to play again', canvas.width/2, canvas.height/2 + 50);
+            
+            ctx.textAlign = 'left';
+            startButton.textContent = 'PLAY AGAIN';
         }
+
+        // Start game function
+        function startGame() {
+            console.log("Starting game...");
+            
+            // Reset game state
+            game.player1 = { 
+                x: 100, y: 300, width: 50, height: 80, 
+                health: 100, velocityY: 0, jumping: false, 
+                attacking: false, attackCooldown: 0, facing: 1, color: '#3498db' 
+            };
+            game.player2 = { 
+                x: 650, y: 300, width: 50, height: 80, 
+                health: 100, velocityY: 0, jumping: false, 
+                attacking: false, attackCooldown: 0, facing: -1, color: '#e74c3c' 
+            };
+            game.keys = {};
+            
+            // Update display
+            updateHealthDisplay();
+            startButton.textContent = 'GAME RUNNING...';
+            
+            // Start game loop
+            gameRunning = true;
+            animationId = requestAnimationFrame(gameLoop);
+            
+            // Focus on canvas for keyboard input
+            canvas.focus();
+        }
+
+        // Initial setup
+        console.log("Game initialized");
+        updateHealthDisplay();
+        
+        // Test drawing
+        ctx.fillStyle = '#1a1a2e';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#16213e';
+        ctx.fillRect(0, game.groundLevel + 80, canvas.width, canvas.height);
+        ctx.fillStyle = 'white';
+        ctx.font = '20px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Click START GAME to begin!', canvas.width/2, canvas.height/2);
+        ctx.textAlign = 'left';
+        
+        console.log("Setup complete. Ready to play!");
     </script>
 </body>
 </html>
- 
